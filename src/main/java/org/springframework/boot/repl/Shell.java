@@ -4,9 +4,11 @@ import jline.console.ConsoleReader;
 import jline.console.completer.CandidateListCompletionHandler;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.cli.Command;
+import org.springframework.boot.cli.CommandFactory;
 import org.springframework.boot.cli.SpringCli;
+import org.springframework.boot.cli.command.RunCommand;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Bean;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
@@ -15,6 +17,7 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.ServiceLoader;
 
 /**
  * @author Jon Brisbin
@@ -22,16 +25,21 @@ import java.util.List;
 @EnableAutoConfiguration
 public class Shell {
 
-	@Bean
-	public SpringCli springCli() {
-		return new SpringCli();
-	}
-
 	public static void main(String... args) throws IOException {
 		SpringApplication app = new SpringApplication(Shell.class);
 		app.setShowBanner(false);
 		ApplicationContext appCtx = app.run(args);
-		SpringCli springCli = appCtx.getBean(SpringCli.class);
+		SpringCli springCli = new SpringCli();
+		List<Command> commands = new ArrayList<>();
+		for(CommandFactory factory : ServiceLoader.load(CommandFactory.class, Shell.class.getClassLoader())) {
+			for(Command command : factory.getCommands()) {
+				commands.add(command);
+				if(command instanceof RunCommand) {
+					commands.add(new StopCommand((RunCommand)command));
+				}
+			}
+		}
+		springCli.setCommands(commands);
 
 		final ConsoleReader console = new ConsoleReader();
 		console.addCompleter(new CommandCompleter(console));
